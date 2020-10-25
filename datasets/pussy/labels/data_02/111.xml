@@ -1,0 +1,26 @@
+<annotation>
+	<folder>data_02</folder>
+	<filename>111.png</filename>
+	<path>E:\work\project\dataset\pussy\images\data_02\111.png</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>762</width>
+		<height>1024</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>pussy</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>236</xmin>
+			<ymin>561</ymin>
+			<xmax>482</xmax>
+			<ymax>964</ymax>
+		</bndbox>
+	</object>
+</annotation>

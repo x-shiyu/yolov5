@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 def train(hyp, opt, device, tb_writer=None):
+    # 控制台打印日志
     logger.info(f'Hyperparameters {hyp}')
     log_dir = Path(tb_writer.log_dir) if tb_writer else Path(opt.logdir) / 'evolve'  # logging directory
     wdir = log_dir / 'weights'  # weights directory
@@ -64,15 +65,18 @@ def train(hyp, opt, device, tb_writer=None):
 
     # Model
     pretrained = weights.endswith('.pt')
+    # 加载预训练的模型参数
     if pretrained:
         with torch_distributed_zero_first(rank):
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
         if hyp.get('anchors'):
             ckpt['model'].yaml['anchors'] = round(hyp['anchors'])  # force autoanchor
+        #     载入输入的配置或者是加载的pretrained的配置，ch=3是输入channel
         model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc).to(device)  # create
         exclude = ['anchor'] if opt.cfg or hyp.get('anchors') else []  # exclude keys
         state_dict = ckpt['model'].float().state_dict()  # to FP32
+        # 只加载在预训练的模型和当前模型中都有的组件的参数，这要求与训练的模型和当前模型的shape要相等
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(state_dict, strict=False)  # load
         logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
@@ -80,6 +84,7 @@ def train(hyp, opt, device, tb_writer=None):
         model = Model(opt.cfg, ch=3, nc=nc).to(device)  # create
 
     # Freeze
+    # 冻结某几层，finetune可以用
     freeze = ['', ]  # parameter names to freeze (full or partial)
     if any(freeze):
         for k, v in model.named_parameters():
@@ -88,6 +93,7 @@ def train(hyp, opt, device, tb_writer=None):
                 v.requires_grad = False
 
     # Optimizer
+    # 将batch_size和64比较，当64不是batch_size的整数倍的时候，权重做相应的调整
     nbs = 64  # nominal batch size
     accumulate = max(round(nbs / total_batch_size), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= total_batch_size * accumulate / nbs  # scale weight_decay
@@ -107,6 +113,7 @@ def train(hyp, opt, device, tb_writer=None):
     else:
         optimizer = optim.SGD(pg0, lr=hyp['lr0'], momentum=hyp['momentum'], nesterov=True)
 
+    # 添加卷积权重参数和biases参数，其中biases不需要权重衰减，这里的params只能是这个名字，执行完add_param_group后optimizer的数据就是一个list中有三个值
     optimizer.add_param_group({'params': pg1, 'weight_decay': hyp['weight_decay']})  # add pg1 with weight_decay
     optimizer.add_param_group({'params': pg2})  # add pg2 (biases)
     logger.info('Optimizer groups: %g .bias, %g conv.weight, %g other' % (len(pg2), len(pg1), len(pg0)))

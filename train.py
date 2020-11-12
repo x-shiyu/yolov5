@@ -119,8 +119,9 @@ def train(hyp, opt, device, tb_writer=None):
     logger.info('Optimizer groups: %g .bias, %g conv.weight, %g other' % (len(pg2), len(pg1), len(pg0)))
     del pg0, pg1, pg2
 
-    # Scheduler https://arxiv.org/pdf/1812.01187.pdf
+    # Scheduler
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
+    # 权重衰减策略
     lf = lambda x: ((1 + math.cos(x * math.pi / epochs)) / 2) * (1 - hyp['lrf']) + hyp['lrf']  # cosine
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     # plot_lr_scheduler(optimizer, scheduler, epochs)
@@ -152,21 +153,26 @@ def train(hyp, opt, device, tb_writer=None):
 
     # Image sizes
     gs = int(max(model.stride))  # grid size (max stride)
+    # 得到处理（就是让图片大小能被网格大小整除）后的图像和测试图像的大小
     imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
 
     # DP mode
+    # 分布式（单机多GPU）
     if cuda and rank == -1 and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
 
     # SyncBatchNorm
     if opt.sync_bn and cuda and rank != -1:
+        # 同步batchnorm，如果不同步的话每个GPU上的batchnorm都会使用当前GPU上数据的方差和均值，那几个GPU虽然训练的是同一个batch的数据，值却是不一样的
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device)
         logger.info('Using SyncBatchNorm()')
 
-    # Exponential moving average
+    # Exponential moving average 指数移动平均
+    # 给予近期数据更高的权重，就是说对于参数，我们给予最近的几次的参数更高的权重，其假设就是最近几次的参数是在最优处抖动，所以最近几次的参数权重就给高点
     ema = ModelEMA(model) if rank in [-1, 0] else None
 
     # DDP mode
+    # 分布式（多机器多GPU）
     if cuda and rank != -1:
         model = DDP(model, device_ids=[opt.local_rank], output_device=opt.local_rank)
 

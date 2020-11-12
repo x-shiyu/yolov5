@@ -46,6 +46,10 @@ def exif_size(img):
     return s
 
 
+# 创建数据加载器
+'''
+rank=-1表示单个机器多个GPU
+'''
 def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=False, cache=False, pad=0.0, rect=False,
                       rank=-1, world_size=1, workers=8):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache.

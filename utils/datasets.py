@@ -53,6 +53,7 @@ rank=-1表示单个机器多个GPU
 def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=False, cache=False, pad=0.0, rect=False,
                       rank=-1, world_size=1, workers=8):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache.
+    # 确保在分布式中第一个线程首先处理数据，接下来的线程才能使用缓存
     with torch_distributed_zero_first(rank):
         dataset = LoadImagesAndLabels(path, imgsz, batch_size,
                                       augment=augment,  # augment images
@@ -337,19 +338,23 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             for p in path if isinstance(path, list) else [path]:
                 p = str(Path(p))  # os-agnostic
                 parent = str(Path(p).parent) + os.sep
+                # 如果是文件
                 if os.path.isfile(p):  # file
                     with open(p, 'r') as t:
                         t = t.read().splitlines()
+                        # 把路径变成绝对路径
                         f += [x.replace('./', parent) if x.startswith('./') else x for x in t]  # local to global path
                 elif os.path.isdir(p):  # folder
                     f += glob.iglob(p + os.sep + '*.*')
                 else:
                     raise Exception('%s does not exist' % p)
+            #     获取图片地址（以.png,.jpg等结尾的文件）
             self.img_files = sorted(
                 [x.replace('/', os.sep) for x in f if os.path.splitext(x)[-1].lower() in img_formats])
         except Exception as e:
             raise Exception('Error loading data from %s: %s\nSee %s' % (path, e, help_url))
 
+        # 图片数量
         n = len(self.img_files)
         assert n > 0, 'No images found in %s. See %s' % (path, help_url)
         bi = np.floor(np.arange(n) / batch_size).astype(np.int)  # batch index

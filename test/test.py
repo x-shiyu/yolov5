@@ -7,6 +7,7 @@ import torch
 import subprocess
 import platform
 from torch import optim
+from contextlib import contextmanager
 
 # logging.basicConfig(level=logging.INFO)
 # img_path = os.path.abspath('F:\images')
@@ -62,11 +63,28 @@ from torch import optim
 # optimizer.add_param_group({"params"})
 # pass
 
-def check_git_status():
-    # Suggest 'git pull' if repo is out of date
-    if platform.system() in ['Linux', 'Darwin'] and not os.path.isfile('/.dockerenv'):
-        s = subprocess.check_output('if [ -d .git ]; then git fetch && git status -uno; fi', shell=True).decode('utf-8')
-        if 'Your branch is behind' in s:
-            print(s[s.find('Your branch is behind'):s.find('\n\n')] + '\n')
+# def check_git_status():
+#     # Suggest 'git pull' if repo is out of date
+#     if platform.system() in ['Linux', 'Darwin'] and not os.path.isfile('/.dockerenv'):
+#         s = subprocess.check_output('if [ -d .git ]; then git fetch && git status -uno; fi', shell=True).decode('utf-8')
+#         if 'Your branch is behind' in s:
+#             print(s[s.find('Your branch is behind'):s.find('\n\n')] + '\n')
+#
+# check_git_status()
 
-check_git_status()
+@contextmanager
+def foo():
+    print("starting...")
+    res = yield 4
+    print("res:", res)
+
+
+with foo() as value:
+    print(value)
+    pass
+
+
+
+# print(next(g))
+# print("*"*20)
+# print(next(g))

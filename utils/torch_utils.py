@@ -25,11 +25,13 @@ def init_torch_seeds(seed=0):
         cudnn.deterministic = False
         cudnn.benchmark = True
 
-
+# 选择训练设备是GPU还是CPU，如果是GPU设置GPU的个数
 def select_device(device='', batch_size=None):
     # device = 'cpu' or '0' or '0,1,2,3'
     cpu_request = device.lower() == 'cpu'
+    # 判断是否是使用cpu，不是的话就要判断cuda的是否可用
     if device and not cpu_request:  # if device requested other than 'cpu'
+        # 指定哪些GPU可见（就是指定使用哪些GPU）
         os.environ['CUDA_VISIBLE_DEVICES'] = device  # set environment variable
         assert torch.cuda.is_available(), 'CUDA unavailable, invalid device %s requested' % device  # check availablity
 
@@ -37,10 +39,12 @@ def select_device(device='', batch_size=None):
     if cuda:
         c = 1024 ** 2  # bytes to MB
         ng = torch.cuda.device_count()
+        # 是否有多个GPU可用，是得话需要保证batch_size是GPU的整数倍，这样才能均分
         if ng > 1 and batch_size:  # check that batch_size is compatible with device_count
             assert batch_size % ng == 0, 'batch-size %g not multiple of GPU count %g' % (batch_size, ng)
         x = [torch.cuda.get_device_properties(i) for i in range(ng)]
         s = 'Using CUDA '
+        # 打印GPU信息
         for i in range(0, ng):
             if i == 1:
                 s = ' ' * len(s)
@@ -50,6 +54,7 @@ def select_device(device='', batch_size=None):
         logger.info('Using CPU')
 
     logger.info('')  # skip a line
+    # 这里的设置cuda:0只是表示起始的GPU序号，并不表示只用GPU:0
     return torch.device('cuda:0' if cuda else 'cpu')
 
 

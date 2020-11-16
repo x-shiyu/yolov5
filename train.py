@@ -56,6 +56,7 @@ def train(hyp, opt, device, tb_writer=None):
     init_seeds(2 + rank)
     with open(opt.data) as f:
         data_dict = yaml.load(f, Loader=yaml.FullLoader)  # data dict
+    #     同步所以进程
     with torch_distributed_zero_first(rank):
         check_dataset(data_dict)  # check
     train_path = data_dict['train']
@@ -174,6 +175,7 @@ def train(hyp, opt, device, tb_writer=None):
     # DDP mode
     # 分布式（多机器多GPU）
     if cuda and rank != -1:
+        # local_rank指定的是当前进程使用的是哪块GPU，local_rank表示的就是GPU序号
         model = DDP(model, device_ids=[opt.local_rank], output_device=opt.local_rank)
 
     # Trainloader
@@ -421,10 +423,13 @@ if __name__ == '__main__':
 
     # Set DDP variables
     opt.total_batch_size = opt.batch_size
+    # 参与job的进程数量
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
+    # 全局进程号
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(opt.global_rank)
     if opt.global_rank in [-1, 0]:
+        # 在linux系统上验证git状态（保证git可用）
         check_git_status()
 
     # Resume
@@ -445,11 +450,14 @@ if __name__ == '__main__':
         log_dir = increment_dir(Path(opt.logdir) / 'exp', opt.name)  # runs/exp1
 
     # DDP mode
+    # 分布式模式
     device = select_device(opt.device, batch_size=opt.batch_size)
+    #local_rank:进程内，GPU 编号，非显式参数，由 torch.distributed.launch 内部指定。比方说， rank = 3，local_rank = 0 表示第 3 个进程内的第 1 块 GPU
     if opt.local_rank != -1:
         assert torch.cuda.device_count() > opt.local_rank
         torch.cuda.set_device(opt.local_rank)
         device = torch.device('cuda', opt.local_rank)
+        # 初始化进程组，backend表示后台服务，nccl是英伟达显卡支持的多卡通信框架,以读取环境变量的方式进行初始化
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
         assert opt.batch_size % opt.world_size == 0, '--batch-size must be multiple of CUDA device count'
         opt.batch_size = opt.total_batch_size // opt.world_size

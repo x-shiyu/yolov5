@@ -8,7 +8,7 @@ import torch.nn as nn
 from utils.datasets import letterbox
 from utils.general import non_max_suppression, make_divisible, scale_coords
 
-
+# padding到卷积前和卷积后大小一致
 def autopad(k, p=None):  # kernel, padding
     # Pad to 'same'
     if p is None:
@@ -20,7 +20,7 @@ def DWConv(c1, c2, k=1, s=1, act=True):
     # Depthwise convolution
     return Conv(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
 
-
+# 卷积层（默认是卷积+BatchNorm2d+激活函数）
 class Conv(nn.Module):
     # Standard convolution
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups

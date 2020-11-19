@@ -73,6 +73,7 @@ class Model(nn.Module):
                 self.yaml = yaml.load(f, Loader=yaml.FullLoader)  # model dict
 
         # Define model
+        # 判断配置文件中的类别数目和传入的类别数目是否一致，别不一致就用传入的类别数目取覆盖配置文件中的类别数目
         if nc and nc != self.yaml['nc']:
             print('Overriding model.yaml nc=%g with nc=%g' % (self.yaml['nc'], nc))
             self.yaml['nc'] = nc  # override yaml value
@@ -195,11 +196,13 @@ class Model(nn.Module):
     def info(self, verbose=False):  # print model information
         model_info(self, verbose)
 
-
+# d：配置文件
+# ch：[channel]
 def parse_model(d, ch):  # model_dict, input_channels(3)
     logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
+    # 每个anchor预测类别和（x，y，w，h，置信度）这5个数
     no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out

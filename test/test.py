@@ -8,7 +8,8 @@ import subprocess
 import platform
 from torch import optim
 from contextlib import contextmanager
-
+from multiprocessing import Process
+import torch.distributed as dist
 # logging.basicConfig(level=logging.INFO)
 # img_path = os.path.abspath('F:\images')
 #
@@ -71,20 +72,56 @@ from contextlib import contextmanager
 #             print(s[s.find('Your branch is behind'):s.find('\n\n')] + '\n')
 #
 # check_git_status()
-
 @contextmanager
-def foo():
+def foo(rank):
+    if rank != 0:
+        torch.distributed.barrier()
     print("starting...")
-    res = yield 4
-    print("res:", res)
+    yield 4
+    if rank == 0:
+        torch.distributed.barrier()
+        print("res")
 
 
-with foo() as value:
-    print(value)
+
+
+
+def run(rank, size):
     pass
 
 
+def init_processes(rank, size, fn, backend='gloo'):
+    """ Initialize the distributed environment. """
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29555'
+    dist.init_process_group(backend, rank=rank, world_size=size)
+    torch.cuda.manual_seed(1)
+    fn(rank, size)
+    print("MM")
+    print(dist.get_rank())
+    print(dist.get_world_size())
+    print(dist.is_available())
 
-# print(next(g))
-# print("*"*20)
-# print(next(g))
+
+def main():
+    size = 2
+    processes=[]
+    for i in range(size):
+        p = Process(target=init_processes, args=(i, size, run))
+        p.start()
+        processes.append(p)
+
+    for p in processes:
+        p.join()
+
+if __name__ == "__main__":
+    # start_time = time.time()
+    # main()
+    # end_time = time.time()
+    # print("耗时：", end_time-start_time)
+    import yaml
+    with open('../models/yolov5l.yaml') as f:
+        res = yaml.load(f, Loader=yaml.FullLoader)
+        anchors = res['anchors']
+        na = (len(anchors[0]) // 2)
+        pass

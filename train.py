@@ -62,7 +62,14 @@ def train(hyp, opt, device, tb_writer=None):
     init_seeds(2 + rank)
     with open(opt.data) as f:
         data_dict = yaml.load(f, Loader=yaml.FullLoader)  # data dict
-    #     同步所以进程（确保）
+    '''
+        执行逻辑：如果是0号进程进来会直接从torch_distributed_zero_first返回,然后执行check_dataset，
+        执行完check_dataset后会进入torch_distributed_zero_first函数从yield之下开始执行barrier函数暂停等到所有线程都到这个函数再继续执行，
+        如果不是0号线程进入那么就会执行barrier函数等待，等到所有进程都进入此函数的时候解除barrier继续执行
+        
+        解除barrier的方法就是等所有进程都执行barrier函数的时候就会解除
+    '''
+    # 核实数据
     with torch_distributed_zero_first(rank):
         check_dataset(data_dict)  # check
     train_path = data_dict['train']
@@ -74,17 +81,20 @@ def train(hyp, opt, device, tb_writer=None):
     pretrained = weights.endswith('.pt')
     # 加载预训练的模型参数
     if pretrained:
+        # 下载与训练数据
         with torch_distributed_zero_first(rank):
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
         if hyp.get('anchors'):
             ckpt['model'].yaml['anchors'] = round(hyp['anchors'])  # force autoanchor
-        #     载入输入的配置或者是加载的pretrained的配置，ch=3是输入channel
+        # 载入输入的配置或者是加载的pretrained的配置，ch=3是输入channel
         model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc).to(device)  # create
         exclude = ['anchor'] if opt.cfg or hyp.get('anchors') else []  # exclude keys
         state_dict = ckpt['model'].float().state_dict()  # to FP32
         # 只加载在预训练的模型和当前模型中都有的组件的参数，这要求与训练的模型和当前模型的shape要相等
+        # intersect_dicts的左右就是将与训练的模型参数和当前的模型参数进行比较，取shape一致的那些参数（shape不一样的是没法运用在当前模型的）
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
+        # 非严格模式加载参数
         model.load_state_dict(state_dict, strict=False)  # load
         logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
